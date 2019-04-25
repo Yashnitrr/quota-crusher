@@ -54,7 +54,7 @@ npm run test
 To run all the test cases with code coverage, run the following command
 
 ```bash
-npm run test-coverage
+npm run coverage
 ```
 
 ### Starting the application locally

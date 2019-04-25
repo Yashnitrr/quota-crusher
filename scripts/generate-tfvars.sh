@@ -41,7 +41,7 @@ command -v gcloud >/dev/null 2>&1 || { \
 # gcloud config holds values related to your environment. If you already
 # defined a default region we will retrieve it and use it
 REGION="$(gcloud config get-value compute/region)"
-if [[ -z "${REGION}" ]]; then
+if [[ -z "${GCP_REGION}" ]]; then
     echo "https://cloud.google.com/compute/docs/regions-zones/changing-default-zone-region" 1>&2
     echo "gcloud cli must be configured with a default region." 1>&2
     echo "run 'gcloud config set compute/region REGION'." 1>&2
@@ -52,7 +52,7 @@ fi
 # gcloud config holds values related to your environment. If you already
 # defined a default zone we will retrieve it and use it
 ZONE="$(gcloud config get-value compute/zone)"
-if [[ -z "${ZONE}" ]]; then
+if [[ -z "${GCP_ZONE}" ]]; then
     echo "https://cloud.google.com/compute/docs/regions-zones/changing-default-zone-region" 1>&2
     echo "gcloud cli must be configured with a default zone." 1>&2
     echo "run 'gcloud config set compute/zone ZONE'." 1>&2
@@ -63,7 +63,7 @@ fi
 # gcloud config holds values related to your environment. If you already
 # defined a default project we will retrieve it and use it
 PROJECT="$(gcloud config get-value core/project)"
-if [[ -z "${PROJECT}" ]]; then
+if [[ -z "${GCP_PROJECT}" ]]; then
     echo "gcloud cli must be configured with a default project." 1>&2
     echo "run 'gcloud config set core/project PROJECT'." 1>&2
     echo "replace 'PROJECT' with the project name." 1>&2
@@ -73,7 +73,7 @@ fi
 
 # Use git to find the top-level directory and confirm
 # by looking for the 'terraform' directory
-#PROJECT_DIR="$(git rev-parse --show-toplevel)"
+PROJECT_DIR="$(git rev-parse --show-toplevel)"
 if [[ -d "$ROOT/terraform" ]]; then
 	PROJECT_DIR="$(pwd)"
 fi
@@ -100,9 +100,9 @@ else
 # Write out all the values we gathered into a tfvars file so you don't
 # have to enter the values manually
     cat <<EOF > "${TFVARS_FILE}"
-project="${PROJECT}"
-region="${REGION}"
-zone="${ZONE}"
+project="${GCP_PROJECT}"
+region="${GCP_REGION}"
+zone="${GCP_ZONE}"
 vpc_network_name="${vpc_network_name}"
 vpc_subnet_name="${vpc_subnet_name}"
 subnet_cidr_range="${subnet_cidr_range}"

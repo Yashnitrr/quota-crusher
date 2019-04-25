@@ -19,7 +19,11 @@ ROOT := ${CURDIR}
 # create/delete/validate is for CICD
 .PHONY: create
 create:
-	@source $(ROOT)/scripts/create.sh
+	@source $(ROOT)/scripts/create_cluster.sh
+
+.PHONY: apply
+apply:
+	@source $(ROOT)/scripts/apply.sh
 
 .PHONY: validate
 validate:
