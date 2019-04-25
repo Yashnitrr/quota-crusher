@@ -1,0 +1,16 @@
+variable project {}
+variable region {}
+variable gke_initial_node {}
+variable gke_cluster_name {}
+variable min_master_version {}
+variable node_pool_name {}
+variable cluster_machine_type {}
+variable min_node_count {}
+variable max_node_count {}
+variable vpc_network_name {}
+variable vpc_subnet_name {}
+variable master_cidr_range {}
+variable authorized_cidr_range {}
+variable istio_version {}
+variable sfdc_username {}
+variable sfdc_password {}

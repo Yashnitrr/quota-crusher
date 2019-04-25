@@ -1,0 +1,28 @@
+version: '3'
+services:
+  express:
+    build: node-express/
+    ports:
+      - "3000:3000"
+    environment:
+      - REDIS_URL=redis://cache
+      - REDIS_HOST=cache
+      - REDIS_PORT=6379
+  sfdc:
+    build: node-sfdc/
+    ports:
+      - "5000:5000"
+    environment:
+      - SFDC_USERNAME=your_username@your_organisation.com
+      - SFDC_PASSWORD=your_passsword+your_security_token
+  graphql:
+    build: node-graphql/
+    ports:
+      - "4000:4000"
+    environment:
+      - EXPRESS_URL=http://express:3000
+  redis:
+    image: redis:latest
+    container_name: cache
+    expose:
+      - 6379

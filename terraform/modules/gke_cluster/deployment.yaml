@@ -1,0 +1,702 @@
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: RbacConfig
+metadata:
+  name: default
+spec:
+  mode: 'ON_WITH_INCLUSION'
+  inclusion:
+    namespaces: ["palo-alto-demo"]
+---
+#Creates service accounts in palo-alto-demo namespace
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: get-express-svc
+  namespace: palo-alto-demo
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: post-redis-svc
+  namespace: palo-alto-demo
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ro-pod-access
+  namespace: palo-alto-demo
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: secrets-access
+  namespace: palo-alto-demo
+---
+#Creates a Kuberneyes RBAC role which has 'pods'
+# and 'services' read only access
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: Role
+metadata:
+  name: ro-role  #Role name
+  namespace: palo-alto-demo
+rules:
+- apiGroups: ["*"]
+  resources: ["pods", "services"]
+  verbs: ["get","list", "watch"]
+---
+#Binds the read only RBAC role to both the service accounts
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ro-binding  #RoleBinding name
+  namespace: palo-alto-demo
+roleRef:
+  kind: Role
+  name: ro-role  #Reffered role
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: get-express-svc #Service account name
+- kind: ServiceAccount
+  name: post-redis-svc #Service account name
+- kind: ServiceAccount
+  name: ro-pod-access  #Service account name
+---
+#Read Only role to access secrets
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: Role
+metadata:
+  name: secret-access-role  #Role name
+  namespace: palo-alto-demo
+rules:
+- apiGroups: ["*"]
+  resources: ["pods","services","secrets"]
+  verbs: ["get","list", "watch"]
+---
+#Binds the read only RBAC role to the service account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: secret-role-binding  #RoleBinding name
+  namespace: palo-alto-demo
+roleRef:
+  kind: Role
+  name: secret-access-role  #Reffered role
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: secrets-access
+---
+# Creates an Istio's RBAC service role to allow the access of 
+#express service with HTTP GET method only by the 'get-express-svc'
+#service account
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRole
+metadata:
+  name: get-content
+  namespace: palo-alto-demo
+spec:
+  rules:
+  - services:
+    - "express.palo-alto-demo.svc.cluster.local"
+    paths: ["*"]
+    methods: ["GET", "HEAD"]
+---
+#Binds an Istio's RBAC service role with a user(service account),
+#here 'get-express-svc' service account, it is attached to 
+#graphql deployment to allow access to express service.
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRoleBinding
+metadata:
+  name: get-content-binding
+  namespace: palo-alto-demo
+spec:
+  subjects:
+  - user: "cluster.local/ns/palo-alto-demo/sa/get-express-svc"
+  roleRef:
+    kind: ServiceRole
+    name: "get-content"
+---
+#Creates a role to allow the tcp port access of Redis 
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRole
+metadata:
+  name: redis-access-tcp
+  namespace: palo-alto-demo
+spec:
+  rules:
+  - services: ["cache.palo-alto-demo.svc.cluster.local"]
+    constraints:
+    - key: "destination.port"
+      values: ["6379"]
+---
+#Creates a Role binding to allow user service account
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRoleBinding
+metadata:
+  name: bind-redis-access
+  namespace: palo-alto-demo
+spec:
+  subjects:
+  - user: "cluster.local/ns/palo-alto-demo/sa/post-redis-svc"
+  roleRef:
+    kind: ServiceRole
+    name: "redis-access-tcp"
+---
+#ServiceRole to access graphql service via POST method only
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRole
+metadata:
+  name: allow-user-access
+  namespace: palo-alto-demo
+spec:
+  rules:
+  - services: 
+    - "graphql.palo-alto-demo.svc.cluster.local"
+    paths: ["*"]
+    methods: ["POST"]
+---
+#Bind with Role to allow every Okta authenticated user to access graphql
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRoleBinding
+metadata:
+  name: allow-user-access-binding
+  namespace: palo-alto-demo
+spec:
+  subjects:
+  - user: "*"
+  roleRef:
+    kind: ServiceRole
+    name: "allow-user-access"
+---
+#ServiceRole to access sfdc service via GET method only
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRole
+metadata:
+  name: get-sfdc
+  namespace: palo-alto-demo
+spec:
+  rules:
+  - services: 
+    - "sfdc.palo-alto-demo.svc.cluster.local"
+    paths: ["*"]
+    methods: ["GET"]
+---
+#Bind with Role to allow every Okta authenticated user to access sfdc
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRoleBinding
+metadata:
+  name: get-sfdc-access-binding
+  namespace: palo-alto-demo
+spec:
+  subjects:
+  - user: "*"
+  roleRef:
+    kind: ServiceRole
+    name: "get-sfdc"
+---
+#ServiceRole to access sfdc service via POST method for all Okta authenticated user
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRole
+metadata:
+  name: post-express
+  namespace: palo-alto-demo
+spec:
+  rules:
+  - services:
+    - "express.palo-alto-demo.svc.cluster.local"
+    paths: ["*"]
+    methods: ["POST"]
+---
+#Bind with Role to allow every Okta authenticated user to access sfdc
+apiVersion: "rbac.istio.io/v1alpha1"
+kind: ServiceRoleBinding
+metadata:
+  name: post-express-access-binding
+  namespace: palo-alto-demo
+spec:
+  subjects:
+  - user: "*"
+  roleRef:
+    kind: ServiceRole
+    name: "post-express"
+---
+#Creates a deployment with name cache, it usesan image
+#from docker hub. Also a service account 'ro-pod-access'
+#is attached and hence the pod will only have required access
+# for pods and services with Istio's rbac 
+#The container listens on port 6379
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: cache
+  name: cache
+  namespace: palo-alto-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cache
+  template:
+    metadata:
+      labels:
+        app: cache
+    spec:
+      serviceAccount: ro-pod-access
+      containers:
+      - image: redis:latest
+        name: cache
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 6379
+        resources:
+            requests:
+              cpu: "128m"
+              memory: "200M"
+            limits:
+              cpu: "256m"
+              memory: "400M"
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  annotations:
+  name: cache-hpa
+  namespace: palo-alto-demo
+spec:
+  maxReplicas: 7
+  minReplicas: 1
+  scaleTargetRef:
+    apiVersion: extensions/v1
+    kind: Deployment
+    name: cache
+  targetCPUUtilizationPercentage: 70
+---
+#Creates a deployment with name graphql, it uses the 
+#image pushed in GCR. Also a service account 'get-express-svc'
+#is attached and hence the pod will only have required access
+# for pods and services with Istio's rbac 
+#The container listens on port 4000
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: graphql
+  name: graphql
+  namespace: palo-alto-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: graphql
+  template:
+    metadata:
+      labels:
+        app: graphql
+    spec:
+      serviceAccount: get-express-svc
+      containers:
+      - image: gcr.io/${project_id}/graphql:v1
+        name: graphql
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: EXPRESS_URL
+          value: "http://express:3000"
+        ports:
+        - containerPort: 4000
+        resources:
+            requests:
+              cpu: "128m"
+              memory: "200M"
+            limits:
+              cpu: "256m"
+              memory: "400M"
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  annotations:
+  name: graphql-hpa
+  namespace: palo-alto-demo
+spec:
+  maxReplicas: 7
+  minReplicas: 1
+  scaleTargetRef:
+    apiVersion: extensions/v1
+    kind: Deployment
+    name: graphql
+  targetCPUUtilizationPercentage: 70
+---
+#Creates a deployment with name graphql, it uses the 
+#image pushed in GCR. Also a service account 'post-redis-svc'
+#is attached and hence the pod will only have required access
+# for pods and services with Istio's rbac 
+#The container listens on port 3000
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: express
+  name: express
+  namespace: palo-alto-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: express
+  template:
+    metadata:
+      labels:
+        app: express
+    spec:
+      serviceAccount: post-redis-svc
+      containers:
+      - image: gcr.io/${project_id}/express:v1
+        name: express
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: REDIS_URL
+          value: "redis://cache"
+        - name: REDIS_HOST
+          value: "cache"
+        - name: REDIS_PORT
+          value: "6379"
+        ports:
+        - containerPort: 3000
+        resources:
+            requests:
+              cpu: "128m"
+              memory: "200M"
+            limits:
+              cpu: "256m"
+              memory: "400M"
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  annotations:
+  name: express-hpa
+  namespace: palo-alto-demo
+spec:
+  maxReplicas: 7
+  minReplicas: 1
+  scaleTargetRef:
+    apiVersion: extensions/v1
+    kind: Deployment
+    name: express
+  targetCPUUtilizationPercentage: 70
+---
+#Creates a secret for sfdc credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: sfdc-credentials
+  namespace: palo-alto-demo
+type: Opaque
+stringData:
+  SFDC_USERNAME: '${SFDC_USERNAME}'
+  SFDC_PASSWORD: '${SFDC_PASSWORD}'
+---
+#Creates a deployment with name sfdc, it uses the 
+#image pushed in GCR.The container listens on port 5000
+#It uses the sfdc credentials from secrets
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: sfdc
+  name: sfdc
+  namespace: palo-alto-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sfdc
+  template:
+    metadata:
+      labels:
+        app: sfdc
+    spec:
+      serviceAccount: secrets-access
+      containers:
+      - image: gcr.io/${project_id}/sfdc:v1
+        name: sfdc
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: SFDC_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: sfdc-credentials
+              key: SFDC_USERNAME
+        - name: SFDC_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: sfdc-credentials
+              key: SFDC_PASSWORD
+        ports:
+        - containerPort: 5000
+        resources:
+            requests:
+              cpu: "128m"
+              memory: "200M"
+            limits:
+              cpu: "256m"
+              memory: "400M"
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  annotations:
+  name: sfdc-hpa
+  namespace: palo-alto-demo
+spec:
+  maxReplicas: 7
+  minReplicas: 1
+  scaleTargetRef:
+    apiVersion: extensions/v1
+    kind: Deployment
+    name: sfdc
+  targetCPUUtilizationPercentage: 70
+---
+#Create a service to redirects the traffic from port 4000
+#to graphql's port 4000. It uses the naming convention of Istio
+kind: Service
+apiVersion: v1
+metadata:
+  name: graphql
+  namespace: palo-alto-demo
+  labels:
+    app: graphql
+spec:
+  selector:
+    app: graphql
+  ports:
+  - port: 4000
+    name: http-graphql
+    targetPort: 4000
+  type: ClusterIP
+---
+#Create a service to redirect the traffic from port 3000
+#to express port 3000. It uses the naming convention of Istio
+kind: Service
+apiVersion: v1
+metadata:
+  name: express
+  namespace: palo-alto-demo
+  labels:
+    app: express
+spec:
+  selector:
+    app: express
+  ports:
+  - port: 3000
+    name: http-express-svc
+    targetPort: 3000
+  type: ClusterIP
+---
+#Create a service to redirect the traffic from port 5000
+#to express port 5000. It uses the naming convention of Istio
+kind: Service
+apiVersion: v1
+metadata:
+  name: sfdc
+  namespace: palo-alto-demo
+  labels:
+    app: sfdc
+spec:
+  selector:
+    app: sfdc
+  ports:
+  - port: 5000
+    name: http-sfdc-service
+    targetPort: 5000
+  type: ClusterIP
+---
+#Create a service to redirect the traffic from port 6379
+#to express port 6379. It uses the naming convention of Istio
+kind: Service
+apiVersion: v1
+metadata:
+  name: cache
+  namespace: palo-alto-demo
+  labels:
+    app: cache
+spec:
+  selector:
+    app: cache
+  ports:
+  - port: 6379
+    name: redis-port
+    targetPort: 6379
+  type: ClusterIP
+---
+#Create a gateway listening on port 443
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: istio-gateway-ilb
+  namespace: palo-alto-demo
+spec:
+  selector:
+    istio: ilbgateway
+  servers:
+  - port:
+      number: 443
+      name: https
+      protocol: https
+    hosts:
+    - "*"
+    tls:
+      mode: SIMPLE
+      serverCertificate: /etc/istio/ilbgateway-certs/tls.crt
+      privateKey: /etc/istio/ilbgateway-certs/tls.key
+---
+#Redirect '/graphql' endpoint from the
+#gateway to graphql service on port 4000
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: graphql-vs
+  namespace: palo-alto-demo
+spec:
+  hosts:
+  - "*"
+  gateways:
+  - istio-gateway-ilb
+  http:
+  - match:
+    - uri:
+        exact: /graphql
+    route:
+    - destination:
+        host: graphql
+        port:
+          number: 4000
+---
+#Redirect '/api/v1/sfdc' endpoint from the
+#gateway to sfdc service on port 5000
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: sfdc-vs
+  namespace: palo-alto-demo
+spec:
+  hosts:
+  - "*"
+  gateways:
+  - istio-gateway-ilb
+  http:
+  - match:
+    - uri:
+        exact: /api/v1/sfdc
+    route:
+    - destination:
+        host: sfdc
+        port:
+          number: 5000
+---
+#Redirect '/api/v1/users' endpoint from the
+#gateway to express service on port 3000
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: express-vs
+  namespace: palo-alto-demo
+spec:
+  hosts:
+  - "*"
+  gateways:
+  - istio-gateway-ilb
+  http:
+  - match:
+    - uri:
+        exact: /api/v1/users
+    route:
+    - destination:
+        host: express
+        port:
+          number: 3000
+---
+#Route every request for host graphql to 
+#follow ISTIO_MUTUAL tls mode
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: graphql-destination
+  namespace: palo-alto-demo
+spec:
+  host: graphql
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: sfdc-destination
+  namespace: palo-alto-demo
+spec:
+  host: sfdc
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: express-destination
+  namespace: palo-alto-demo
+spec:
+  host: express
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: cache-destination
+  namespace: palo-alto-demo
+spec:
+  host: cache
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+#Policy defines the url of Okta to validate the token
+#It listens every requests from 443
+apiVersion: authentication.istio.io/v1alpha1
+kind: Policy
+metadata:
+  name: ingressgateway
+  namespace: istio-system
+spec:
+  targets:
+  - name: istio-ilbgateway
+    ports:
+    - number: 443
+  peers:
+  - mtls: {}
+  origins:
+  - jwt:
+      audiences:
+      - "api://default"
+      issuer: "https://dev-652754.okta.com/oauth2/default"
+  principalBinding: USE_ORIGIN
+---
+#open port https 443 in istio ingress internal loadbalancer
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: istio-ilbgateway
+  name: istio-ilbgateway
+  namespace: istio-system
+spec:
+  type: LoadBalancer
+  ports:
+  - name: https
+    port: 443
+    protocol: TCP
+    targetPort: 443

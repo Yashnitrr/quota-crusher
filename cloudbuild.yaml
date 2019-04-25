@@ -1,0 +1,19 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ["build", "-t", "gcr.io/palo-alto-networks-234507/microservice-python", "./microservices/pyflask"]
+
+- name: 'gcr.io/cloud-builders/docker'
+  args: ["push", "gcr.io/palo-alto-networks-234507/panw-python"]  
+
+- name: 'gcr.io/cloud-builders/docker'
+  args: ["build", "-t", "gcr.io/palo-alto-networks-234507/microservice-grapgql", "./microservices/node-graphql"]
+
+- name: 'gcr.io/cloud-builders/docker'
+  args: ["push", "gcr.io/palo-alto-networks-234507/panw-graphql"]
+
+- name: 'gcr.io/cloud-builders/docker'
+  args: ["build", "-t", "gcr.io/palo-alto-networks-234507/microservice-express", "./microservices/node-express"]
+
+- name: 'gcr.io/cloud-builders/docker'
+  args: ["push", "gcr.io/palo-alto-networks-234507/panw-express"]
+
